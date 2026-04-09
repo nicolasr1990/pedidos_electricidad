@@ -233,7 +233,7 @@ body {
 }
 .acc-btns {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 6px;
   margin-bottom: 10px;
 }
@@ -259,6 +259,24 @@ body {
 .btn-est.ok.sel, .btn-est.ok:active  { background: var(--green-bg); border-color: var(--green-border); color: var(--green); }
 .btn-est.fa.sel, .btn-est.fa:active  { background: var(--red-bg); border-color: var(--red-border); color: var(--red); }
 .btn-est.dp.sel, .btn-est.dp:active  { background: var(--blue-bg); border-color: var(--blue-border); color: var(--blue); }
+.btn-est.pe.sel, .btn-est.pe:active  { background: var(--yellow-bg); border-color: var(--yellow-border); color: var(--yellow); }
+
+/* NOTA DE PENDIENTE — visible en la tarjeta */
+.card-nota {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  background: var(--yellow-bg);
+  border: 1px solid var(--yellow-border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--yellow);
+  line-height: 1.4;
+}
+.card-nota-ico { flex-shrink: 0; font-size: 13px; margin-top: 1px; }
+.b-pend-nota { background: rgba(245,158,11,0.2); color: var(--yellow); border: 1px solid var(--yellow-border); }
 
 .obs {
   width: 100%;
@@ -409,7 +427,7 @@ body {
 // ============================================================
 // CONFIGURACIÓN — reemplazá con tu URL de Apps Script
 // ============================================================
-var API_URL = 'https://script.google.com/macros/s/AKfycbxV5mNkIzPHZb8gicgiYDnK-0tmOzYABwqLLBtxE94xy83ydWAR8MyxJP051FVyCV_B/exec';
+var API_URL = 'https://script.google.com/macros/s/TU_DEPLOYMENT_ID/exec';
 // ============================================================
 
 var todos = [], filtroActivo = 'todos', estadosSel = {};
@@ -453,8 +471,11 @@ function aplicar() {
 // ------------------------------------------------------------
 // RENDER TARJETAS
 // ------------------------------------------------------------
-function badgeEst(e) {
-  if (e === 'Pendiente')      return '<span class="badge b-pend">Pendiente</span>';
+function badgeEst(e, obs) {
+  if (e === 'Pendiente') {
+    if (obs) return '<span class="badge b-pend-nota">📝 Pendiente</span>';
+    return '<span class="badge b-pend">Pendiente</span>';
+  }
   if (e === 'Falta material') return '<span class="badge b-falta">Falta mat.</span>';
   if (e === 'DPEC')           return '<span class="badge b-dpec">DPEC</span>';
   return '<span class="badge">' + e + '</span>';
@@ -468,18 +489,22 @@ function dibujar(lista) {
   }
   c.innerHTML = lista.map(function(p) {
     var urg = p.urgencia === 'URGENTE';
+    var notaHtml = p.observaciones
+      ? '<div class="card-nota"><span class="card-nota-ico">📝</span><span>' + p.observaciones + '</span></div>'
+      : '';
     return '<div class="card' + (urg ? ' urgente' : '') + '" id="c-' + p.id + '">' +
       '<div class="card-top">' +
         '<span class="card-id">#' + p.id + '</span>' +
         '<div class="badges">' +
           (urg ? '<span class="badge b-urg">Urgente</span>' : '<span class="badge b-norm">Normal</span>') +
-          badgeEst(p.estado) +
+          badgeEst(p.estado, p.observaciones) +
         '</div>' +
       '</div>' +
       '<div class="card-body">' +
         '<div class="card-dir">📍 ' + p.direccion + '</div>' +
         '<div class="card-desc">' + p.descripcion + '</div>' +
-        '<div class="card-meta">' +
+        notaHtml +
+        '<div class="card-meta" style="margin-top:8px">' +
           '<span class="meta">📅 ' + p.fechaIngreso + '</span>' +
           '<span class="meta-dot"></span>' +
           '<span class="meta">👤 ' + p.solicitante + '</span>' +
@@ -493,10 +518,11 @@ function dibujar(lista) {
           '<button class="btn-est ok" onclick="sel(' + p.id + ',\'Resuelto\',this)"><span class="ico">✅</span>Resuelto</button>' +
           '<button class="btn-est fa" onclick="sel(' + p.id + ',\'Falta material\',this)"><span class="ico">⚠️</span>Falta mat.</button>' +
           '<button class="btn-est dp" onclick="sel(' + p.id + ',\'DPEC\',this)"><span class="ico">🔌</span>DPEC</button>' +
+          '<button class="btn-est pe" onclick="sel(' + p.id + ',\'Pendiente\',this)"><span class="ico">📝</span>Pendiente</button>' +
         '</div>' +
         '<textarea class="obs" id="o-' + p.id + '" rows="2" placeholder="Observaciones (opcional)…"></textarea>' +
         '<button class="btn-save" id="s-' + p.id + '" onclick="guardar(' + p.id + ')">Guardar cambio</button>' +
-        '<div class="res-ok" id="rok-' + p.id + '">✓ Actualizado correctamente</div>' +
+        '<div class="res-ok" id="rok-' + p.id + '">✓ Registrado correctamente</div>' +
         '<div class="res-err" id="rer-' + p.id + '"></div>' +
       '</div>' +
     '</div>';
@@ -511,7 +537,16 @@ function sel(id, estado, btn) {
   var btns = btn.closest('.acc-btns').querySelectorAll('.btn-est');
   btns.forEach(function(b) { b.classList.remove('sel'); });
   btn.classList.add('sel');
-  document.getElementById('o-' + id).classList.add('v');
+  var obsEl = document.getElementById('o-' + id);
+  obsEl.classList.add('v');
+  // Si elige Pendiente, la observación es obligatoria
+  if (estado === 'Pendiente') {
+    obsEl.placeholder = 'Aclaración obligatoria (¿por qué sigue pendiente?)';
+    obsEl.style.borderColor = 'rgba(245,158,11,0.5)';
+  } else {
+    obsEl.placeholder = 'Observaciones (opcional)…';
+    obsEl.style.borderColor = '';
+  }
   document.getElementById('s-' + id).classList.add('v');
 }
 
@@ -521,6 +556,14 @@ function guardar(id) {
   var estado = estadosSel[id];
   if (!estado) return;
   var obs = document.getElementById('o-' + id).value.trim();
+
+  // Pendiente requiere observación
+  if (estado === 'Pendiente' && !obs) {
+    toast('Escribí una aclaración para dejar pendiente ☝️', true);
+    document.getElementById('o-' + id).focus();
+    return;
+  }
+
   var btn = document.getElementById('s-' + id);
   var rok = document.getElementById('rok-' + id);
   var rer = document.getElementById('rer-' + id);
@@ -542,15 +585,46 @@ function guardar(id) {
   .then(function(r) {
     btn.disabled = false; btn.textContent = 'Guardar cambio';
     if (r.ok) {
-      toast('✓ Pedido #' + id + ' actualizado');
-      var card = document.getElementById('c-' + id);
-      card.classList.add('saliendo');
-      setTimeout(function() {
-        card.remove();
-        todos = todos.filter(function(p) { return String(p.id) !== String(id); });
-        document.getElementById('cnt').textContent = todos.length;
-        if (!todos.length) aplicar();
-      }, 380);
+      if (estado === 'Pendiente') {
+        // No sacar la tarjeta — actualizar en el lugar
+        toast('📝 Nota guardada en pedido #' + id);
+        rok.className = 'res-ok v';
+        // Actualizar la nota visible en la tarjeta sin recargar
+        var pedido = todos.find(function(p) { return String(p.id) === String(id); });
+        if (pedido) { pedido.observaciones = obs; }
+        // Refrescar solo los badges y la nota de esta tarjeta
+        var card = document.getElementById('c-' + id);
+        var badgesPend = card.querySelector('.badges');
+        if (badgesPend) {
+          var urgBadge = badgesPend.querySelector('.b-urg, .b-norm');
+          badgesPend.innerHTML = (urgBadge ? urgBadge.outerHTML : '') + badgeEst('Pendiente', obs);
+        }
+        var notaExistente = card.querySelector('.card-nota');
+        var notaNueva = '<div class="card-nota"><span class="card-nota-ico">📝</span><span>' + obs + '</span></div>';
+        if (notaExistente) {
+          notaExistente.outerHTML = notaNueva;
+        } else {
+          var descEl = card.querySelector('.card-desc');
+          if (descEl) descEl.insertAdjacentHTML('afterend', notaNueva);
+        }
+        // Resetear acciones
+        document.getElementById('o-' + id).classList.remove('v');
+        document.getElementById('s-' + id).classList.remove('v');
+        card.querySelectorAll('.btn-est').forEach(function(b) { b.classList.remove('sel'); });
+        delete estadosSel[id];
+        setTimeout(function() { rok.className = 'res-ok'; }, 2500);
+      } else {
+        // Resuelto / Falta material / DPEC → sacar la tarjeta
+        toast('✓ Pedido #' + id + ' actualizado');
+        var card2 = document.getElementById('c-' + id);
+        card2.classList.add('saliendo');
+        setTimeout(function() {
+          card2.remove();
+          todos = todos.filter(function(p) { return String(p.id) !== String(id); });
+          document.getElementById('cnt').textContent = todos.length;
+          if (!todos.length) aplicar();
+        }, 380);
+      }
     } else {
       rer.textContent = 'Error: ' + (r.error || 'desconocido');
       rer.className = 'res-err v';
