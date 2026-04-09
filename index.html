@@ -427,7 +427,7 @@ body {
 // ============================================================
 // CONFIGURACIÓN — reemplazá con tu URL de Apps Script
 // ============================================================
-var API_URL = 'https://script.google.com/macros/s/TU_DEPLOYMENT_ID/exec';
+var API_URL = 'https://script.google.com/macros/s/AKfycbz9XRh5NpGmH4-x0hKkKsOkHHwipoWuskZy5JjjxPxBr8xMQ9DSmQgdVkZ9Cqg3Fbem/exec';
 // ============================================================
 
 var todos = [], filtroActivo = 'todos', estadosSel = {};
@@ -436,7 +436,7 @@ var todos = [], filtroActivo = 'todos', estadosSel = {};
 // CARGA DE DATOS
 // ------------------------------------------------------------
 function cargar() {
-  fetch(API_URL + '?action=getPedidos')
+  fetch(API_URL + '?action=getPedidos', { redirect: 'follow' })
     .then(function(r) { return r.json(); })
     .then(render)
     .catch(function(e) {
@@ -571,16 +571,15 @@ function guardar(id) {
   btn.textContent = 'Guardando…';
   rok.className = 'res-ok'; rer.className = 'res-err';
 
-  fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({
-      idPedido      : String(id),
-      estado        : estado,
-      observaciones : obs,
-      actualizadoPor: nombre
-    })
-  })
+  // Apps Script no soporta CORS con POST desde dominios externos.
+  // Mandamos todo por GET codificando los datos en la URL.
+  var params = '?action=actualizarEstado' +
+    '&idPedido='       + encodeURIComponent(String(id)) +
+    '&estado='         + encodeURIComponent(estado) +
+    '&observaciones='  + encodeURIComponent(obs) +
+    '&actualizadoPor=' + encodeURIComponent(nombre);
+
+  fetch(API_URL + params, { redirect: 'follow' })
   .then(function(r) { return r.json(); })
   .then(function(r) {
     btn.disabled = false; btn.textContent = 'Guardar cambio';
